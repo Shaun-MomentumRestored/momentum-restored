@@ -1,0 +1,140 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Client {
+  id         String   @id @default(cuid())
+  name       String
+  email      String   @unique
+  slug       String   @unique
+  createdAt  DateTime @default(now())
+  lastActive DateTime @default(now())
+
+  weeks           Week[]
+  wins            Win[]
+  goal12Month     Goal12Month?
+  monthlyGoals    MonthlyGoal[]
+  meetingNotes    MeetingNote[]
+  journal         JournalEntry[]
+  revenueTrackers RevenueTracker[]
+  contract        ExecutionContract?
+}
+
+model Week {
+  id        String   @id @default(cuid())
+  clientId  String
+  label     String
+  startDate String   @default("")
+  createdAt DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tasks  Task[]
+}
+
+model Task {
+  id            String   @id @default(cuid())
+  weekId        String
+  name          String
+  estimatedMins Int
+  actualMins    Float    @default(0)
+  sessions      Int      @default(0)
+  abandoned     Boolean  @default(false)
+  completedDays String   @default("[]")
+  done          Boolean  @default(false)
+  timerState    String?
+  createdAt     DateTime @default(now())
+
+  week Week @relation(fields: [weekId], references: [id], onDelete: Cascade)
+}
+
+model Win {
+  id        String   @id @default(cuid())
+  clientId  String
+  category  String
+  headline  String
+  value     Float?
+  detail    String?
+  shareOk   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model Goal12Month {
+  id         String  @id @default(cuid())
+  clientId   String  @unique
+  headline   String  @default("")
+  milestone1 String  @default("")
+  milestone2 String  @default("")
+  milestone3 String  @default("")
+  whyMatters String  @default("")
+  committed  Boolean @default(false)
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model MonthlyGoal {
+  id       String @id @default(cuid())
+  clientId String
+  month    String
+  items    String @default("[]")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, month])
+}
+
+model MeetingNote {
+  id            String   @id @default(cuid())
+  clientId      String
+  date          String
+  sessionNumber Int
+  notes         String   @default("")
+  actions       String   @default("")
+  createdAt     DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model JournalEntry {
+  id        String   @id @default(cuid())
+  clientId  String
+  excuse    String   @default("")
+  reality   String   @default("")
+  action    String   @default("")
+  createdAt DateTime @default(now())
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
+
+model RevenueTracker {
+  id       String @id @default(cuid())
+  clientId String
+  month    String
+  target   Float  @default(0)
+  actual   Float  @default(0)
+  tasks    String @default("[]")
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([clientId, month])
+}
+
+model ExecutionContract {
+  id           String    @id @default(cuid())
+  clientId     String    @unique
+  commitment1  String    @default("")
+  commitment2  String    @default("")
+  commitment3  String    @default("")
+  commitment4  String    @default("")
+  consequences String    @default("")
+  signed       Boolean   @default(false)
+  signedAt     DateTime?
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+}
