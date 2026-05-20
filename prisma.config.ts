@@ -1,20 +1,22 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
-import { PrismaLibSQL } from "@prisma/adapter-libsql";
+import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { createClient } from "@libsql/client";
 
-const rawUrl = process.env.DATABASE_URL || "file:./prisma/dev.db";
+const tursoUrl = process.env.TURSO_DATABASE_URL;
+const localUrl = process.env.DATABASE_URL || "file:./prisma/dev.db";
+const activeUrl = tursoUrl ?? localUrl;
 
 function createAdapter() {
-  if (process.env.TURSO_DATABASE_URL) {
+  if (tursoUrl) {
     const client = createClient({
-      url: process.env.TURSO_DATABASE_URL,
+      url: tursoUrl,
       authToken: process.env.TURSO_AUTH_TOKEN,
     });
-    return new PrismaLibSQL(client);
+    return new PrismaLibSql(client);
   }
-  const client = createClient({ url: rawUrl });
-  return new PrismaLibSQL(client);
+  const client = createClient({ url: localUrl });
+  return new PrismaLibSql(client);
 }
 
 export default defineConfig({
@@ -23,7 +25,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: rawUrl,
+    url: activeUrl,
     adapter: createAdapter(),
   },
 });
