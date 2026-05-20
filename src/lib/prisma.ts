@@ -3,10 +3,11 @@ import { PrismaLibSql } from "@prisma/adapter-libsql";
 import { createClient } from "@libsql/client";
 
 function createAdapter() {
-  if (process.env.TURSO_DATABASE_URL) {
+  const tursoUrl = process.env.TURSO_DATABASE_URL?.replace(/^﻿/, "").trim();
+  if (tursoUrl) {
     const client = createClient({
-      url: process.env.TURSO_DATABASE_URL,
-      authToken: process.env.TURSO_AUTH_TOKEN,
+      url: tursoUrl,
+      authToken: process.env.TURSO_AUTH_TOKEN?.replace(/^﻿/, "").trim(),
     });
     return new PrismaLibSql(client);
   }
