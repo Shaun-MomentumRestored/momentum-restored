@@ -2,18 +2,52 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
-  Play, Pause, RotateCcw, Plus, Trash2, ChevronDown, ChevronUp, Check, Clock
+  Play, Pause, RotateCcw, Plus, Trash2, Check, Clock, Repeat
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { formatSeconds, formatMins } from "@/lib/utils";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+type RepeatType = "none" | "daily" | "weekly" | "custom";
+
+interface RepeatConfig {
+  type: RepeatType;
+  day?: number;
+  days?: number[];
+}
+
+function parseRepeat(r: string): RepeatConfig {
+  if (!r || r === "none") return { type: "none" };
+  try {
+    return JSON.parse(r) as RepeatConfig;
+  } catch {
+    return { type: "none" };
+  }
+}
+
+function serializeRepeat(r: RepeatConfig): string {
+  if (r.type === "none") return "none";
+  return JSON.stringify(r);
+}
+
+function repeatLabel(r: RepeatConfig): string {
+  if (r.type === "daily") return "Repeats daily";
+  if (r.type === "weekly") return `Repeats every ${DAYS[r.day ?? 0]}`;
+  if (r.type === "custom") {
+    const names = (r.days ?? []).map((d) => DAYS[d]).join(", ");
+    return `Repeats: ${names}`;
+  }
+  return "";
+}
 
 interface RawTask {
   id: string;
@@ -25,6 +59,7 @@ interface RawTask {
   completedDays: string;
   done: boolean;
   timerState: string | null;
+  repeat: string;
   createdAt: string;
 }
 
@@ -45,6 +80,7 @@ interface Task {
   completedDays: number[];
   done: boolean;
   timerState: TimerState | null;
+  repeat: RepeatConfig;
 }
 
 interface Week {
@@ -58,6 +94,7 @@ function parseTask(t: RawTask): Task {
     ...t,
     completedDays: JSON.parse(t.completedDays || "[]") as number[],
     timerState: t.timerState ? (JSON.parse(t.timerState) as TimerState) : null,
+    repeat: parseRepeat(t.repeat),
   };
 }
 
@@ -87,6 +124,7 @@ export default function WeeklyTasks({ slug }: { slug: string }) {
   const [newWeekLabel, setNewWeekLabel] = useState("");
   const [newTaskName, setNewTaskName] = useState("");
   const [newTaskMins, setNewTaskMins] = useState("30");
+  const [newTaskRepeat, setNewTaskRepeat] = useState<RepeatConfig>({ type: "none" });
   const [addingTask, setAddingTask] = useState(false);
   const [timer, setTimer] = useState<ActiveTimer | null>(null);
   const [showDoneModal, setShowDoneModal] = useState(false);
@@ -207,7 +245,12 @@ export default function WeeklyTasks({ slug }: { slug: string }) {
     const res = await fetch(`/api/client/${slug}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ weekId, name: newTaskName.trim(), estimatedMins: Number(newTaskMins) || 30 }),
+      body: JSON.stringify({
+        weekId,
+        name: newTaskName.trim(),
+        estimatedMins: Number(newTaskMins) || 30,
+        repeat: serializeRepeat(newTaskRepeat),
+      }),
     });
     if (res.ok) {
       const raw = (await res.json()) as RawTask;
@@ -215,6 +258,7 @@ export default function WeeklyTasks({ slug }: { slug: string }) {
       setWeeks((prev) => prev.map((w) => w.id === weekId ? { ...w, tasks: [...w.tasks, parsed] } : w));
       setNewTaskName("");
       setNewTaskMins("30");
+      setNewTaskRepeat({ type: "none" });
       setAddingTask(false);
     }
   };
@@ -238,6 +282,7 @@ export default function WeeklyTasks({ slug }: { slug: string }) {
       body: JSON.stringify({
         ...data,
         ...(data.completedDays !== undefined && { completedDays: data.completedDays }),
+        ...(data.repeat !== undefined && { repeat: serializeRepeat(data.repeat) }),
       }),
     });
   };
@@ -347,6 +392,12 @@ export default function WeeklyTasks({ slug }: { slug: string }) {
     updateTask(task.id, { completedDays: days });
   };
 
+  const toggleRepeatDay = (dayIdx: number) => {
+    const days = newTaskRepeat.days ?? [];
+    const next = days.includes(dayIdx) ? days.filter((x) => x !== dayIdx) : [...days, dayIdx];
+    setNewTaskRepeat({ type: "custom", days: next });
+  };
+
   const activeWeek = weeks.find((w) => w.id === activeWeekId);
 
   if (loading) return <div className="text-center py-12 text-[var(--muted)]">Loading…</div>;
@@ -444,6 +495,11 @@ export default function WeeklyTasks({ slug }: { slug: string }) {
                       <span className={`font-medium text-sm ${task.done ? "line-through text-[var(--muted)]" : "text-navy"}`}>
                         {task.name}
                       </span>
+                      {task.repeat.type !== "none" && (
+                        <span title={repeatLabel(task.repeat)} className="flex-shrink-0">
+                          <Repeat className="h-3.5 w-3.5 text-dark-green" />
+                        </span>
+                      )}
                       {task.abandoned && <Badge variant="destructive" className="text-xs">Abandoned</Badge>}
                       {task.done && <Badge variant="success" className="text-xs">Done</Badge>}
                     </div>
@@ -558,29 +614,81 @@ export default function WeeklyTasks({ slug }: { slug: string }) {
           {/* Add task form */}
           <div className="px-4 py-3 bg-cream/50">
             {addingTask ? (
-              <div className="flex flex-col sm:flex-row gap-2">
-                <Input
-                  autoFocus
-                  placeholder="Task name"
-                  value={newTaskName}
-                  onChange={(e) => setNewTaskName(e.target.value)}
-                  className="flex-1"
-                />
-                <div className="flex items-center gap-1">
-                  <Clock className="h-4 w-4 text-[var(--muted)]" />
+              <div className="flex flex-col gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                   <Input
-                    type="number"
-                    min="1"
-                    placeholder="Mins"
-                    value={newTaskMins}
-                    onChange={(e) => setNewTaskMins(e.target.value)}
-                    className="w-20"
+                    autoFocus
+                    placeholder="Task name"
+                    value={newTaskName}
+                    onChange={(e) => setNewTaskName(e.target.value)}
+                    className="flex-1"
                   />
-                  <span className="text-sm text-[var(--muted)]">min</span>
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-4 w-4 text-[var(--muted)]" />
+                    <Input
+                      type="number"
+                      min="1"
+                      placeholder="Mins"
+                      value={newTaskMins}
+                      onChange={(e) => setNewTaskMins(e.target.value)}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-[var(--muted)]">min</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => createTask(activeWeek.id)}>Add</Button>
+                    <Button size="sm" variant="ghost" onClick={() => { setAddingTask(false); setNewTaskRepeat({ type: "none" }); }}>Cancel</Button>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" onClick={() => createTask(activeWeek.id)}>Add</Button>
-                  <Button size="sm" variant="ghost" onClick={() => setAddingTask(false)}>Cancel</Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Repeat className="h-4 w-4 text-[var(--muted)]" />
+                  <Select
+                    value={newTaskRepeat.type}
+                    onValueChange={(v) => setNewTaskRepeat({ type: v as RepeatType })}
+                  >
+                    <SelectTrigger className="w-32 h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No repeat</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="custom">Custom</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {newTaskRepeat.type === "weekly" && (
+                    <Select
+                      value={String(newTaskRepeat.day ?? 0)}
+                      onValueChange={(v) => setNewTaskRepeat({ type: "weekly", day: Number(v) })}
+                    >
+                      <SelectTrigger className="w-28 h-8 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DAYS.map((d, i) => (
+                          <SelectItem key={i} value={String(i)}>{d}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {newTaskRepeat.type === "custom" && (
+                    <div className="flex gap-1">
+                      {DAYS.map((d, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => toggleRepeatDay(i)}
+                          className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
+                            (newTaskRepeat.days ?? []).includes(i)
+                              ? "bg-dark-green text-cream"
+                              : "bg-pale-green/40 text-navy hover:bg-pale-green"
+                          }`}
+                        >
+                          {d[0]}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (

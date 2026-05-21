@@ -8,9 +8,9 @@ export async function POST(
   const client = await prisma.client.findUnique({ where: { slug } });
   if (!client) return Response.json({ error: "Not found" }, { status: 404 });
 
-  const { weekId, name, estimatedMins } = await request.json();
+  const { weekId, name, estimatedMins, repeat } = await request.json();
   const task = await prisma.task.create({
-    data: { weekId, name, estimatedMins: Number(estimatedMins) },
+    data: { weekId, name, estimatedMins: Number(estimatedMins), repeat: repeat ?? "none" },
   });
   return Response.json(task, { status: 201 });
 }

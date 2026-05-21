@@ -25,9 +25,30 @@ export async function POST(
   if (!client) return Response.json({ error: "Not found" }, { status: 404 });
 
   const { label, startDate } = await request.json();
-  const week = await prisma.week.create({
+  const newWeek = await prisma.week.create({
     data: { clientId: client.id, label, startDate: startDate || "" },
-    include: { tasks: true },
+  });
+
+  // Auto-copy recurring tasks from the most recent previous week
+  const previousWeek = await prisma.week.findFirst({
+    where: { clientId: client.id, id: { not: newWeek.id } },
+    orderBy: { createdAt: "desc" },
+    include: { tasks: { where: { repeat: { not: "none" } } } },
+  });
+
+  if (previousWeek && previousWeek.tasks.length > 0) {
+    await Promise.all(
+      previousWeek.tasks.map((t) =>
+        prisma.task.create({
+          data: { weekId: newWeek.id, name: t.name, estimatedMins: t.estimatedMins, repeat: t.repeat },
+        })
+      )
+    );
+  }
+
+  const week = await prisma.week.findUnique({
+    where: { id: newWeek.id },
+    include: { tasks: { orderBy: { createdAt: "asc" } } },
   });
   return Response.json(week, { status: 201 });
 }

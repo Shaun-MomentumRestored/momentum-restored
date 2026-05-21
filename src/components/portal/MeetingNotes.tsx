@@ -134,7 +134,7 @@ export default function MeetingNotes({ slug }: { slug: string }) {
             )}
             {note.actions && (
               <div>
-                <p className="text-xs font-semibold text-[var(--muted)] uppercase mb-1">Actions Agreed</p>
+                <p className="text-xs font-semibold text-[var(--muted)] uppercase mb-1">Before Next Session</p>
                 <p className="text-sm text-navy whitespace-pre-wrap">{note.actions}</p>
               </div>
             )}
@@ -177,7 +177,7 @@ export default function MeetingNotes({ slug }: { slug: string }) {
               />
             </div>
             <div>
-              <Label className="mb-1 block">Actions Agreed</Label>
+              <Label className="mb-1 block">Before Next Session</Label>
               <Textarea
                 placeholder="What will you do before the next session?"
                 value={form.actions}

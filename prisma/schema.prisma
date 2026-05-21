@@ -47,6 +47,7 @@ model Task {
   completedDays String   @default("[]")
   done          Boolean  @default(false)
   timerState    String?
+  repeat        String   @default("none")
   createdAt     DateTime @default(now())
 
   week Week @relation(fields: [weekId], references: [id], onDelete: Cascade)

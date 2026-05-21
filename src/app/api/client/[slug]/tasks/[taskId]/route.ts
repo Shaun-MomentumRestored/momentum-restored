@@ -29,6 +29,7 @@ export async function PATCH(
             ? null
             : JSON.stringify(body.timerState),
       }),
+      ...(body.repeat !== undefined && { repeat: body.repeat }),
     },
   });
   return Response.json(task);
