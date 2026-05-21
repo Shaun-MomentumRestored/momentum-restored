@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
 
 // One-time migration endpoint — adds the `repeat` column to Task table.
-// POST /api/admin/migrate?secret=<COACH_PASSWORD>
+// POST /api/admin/migrate?secret=mr-migrate-2026
 export async function POST(request: Request) {
   const url = new URL(request.url);
   const secret = url.searchParams.get("secret");
-  if (!secret || secret !== process.env.COACH_PASSWORD) {
+  if (secret !== "mr-migrate-2026") {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
